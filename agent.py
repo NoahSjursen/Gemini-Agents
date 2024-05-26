@@ -51,17 +51,44 @@ def request_gemini_to_generate(user_input):
 def generate_plan_and_files(agent_data):
     task = agent_data['task']
     role = agent_data['role']
-
-    # Construct a prompt for the AI to generate a detailed plan
+    codesnippets = agent_data['codesnippets']  # List of file names
+    codesnippetstext = ""
+    # Construct the prompt with code snippets
     prompt = f"""
     You are a "{role}" tasked with "{task}".
-    The task should be completed as a single solution. not multiple projects.
-    Input: [Describe the input data format]
-    Output: [Describe the desired output format]
-    Constraints: [Specify any limitations]
-    Evaluation Criteria: [List criteria for assessing the plan]
-    Error Handling: [Mention the need to address potential errors]
-    When importing libraries make sure you import all needed components of that library. And make sure they are all used.
+    The task should be completed as a single solution, not multiple projects.
+
+    ## Input Data:
+    [Describe the input data format]
+
+    ## Output:
+    [Describe the desired output format]
+
+    ## Constraints:
+    [Specify any limitations]
+
+    ## Evaluation Criteria:
+    [List criteria for assessing the plan]
+
+    ## Error Handling:
+    [Mention the need to address potential errors]
+
+    ## Code Snippets:
+
+    """
+
+    # Loop through the file names and read content
+    for filename in codesnippets:
+        file_path = os.path.join("codesnippets", filename)  # Join path with "codesnippets" folder
+        if os.path.isfile(file_path):  # Check if the file exists
+            with open(file_path, 'r') as file:
+                code_snippet = file.read()
+                codesnippetstext += code_snippet + "\n\n\n\n"
+                prompt += f"```\n{code_snippet}\n```\n"
+        else:
+            print(f"Warning: File not found: {file_path}")  # Print a warning if file not found
+
+    prompt += """
     ## File Structure and Responsibilities:
 
     Design a logical file structure for this project. For each file you create, clearly state its purpose and the specific tasks it will handle.
@@ -75,7 +102,7 @@ def generate_plan_and_files(agent_data):
         [tasks]
 
     **Provide a detailed plan for each file.**
-
+    **Include a read me file that explains the project**
     ## Plan:
     [Write your detailed plan here, including specific steps for each file.]
     """
@@ -84,7 +111,7 @@ def generate_plan_and_files(agent_data):
 
     # Analyze the plan to extract file names
     file_names = []
-    prompt_filenames = f"You are tasked with finding the files required in this project. look for text with 'Create a file named: 'filename' ' for each file you find. add to a list with filenames only seperated by comma. here is the info to look through: {response} place 'start.py' at the end of the list use no other formatting such as '' when placing into the string"
+    prompt_filenames = f"You are tasked with finding the files required in this project. look for text with 'Create a file named: 'filename' ' for each file you find. add to a list with filenames only seperated by comma. here is the info to look through: {response} use no other formatting such as '' when placing into the string"
     file_names = request_gemini_to_generate(prompt_filenames)
     print(file_names)
     file_names = file_names.split(",")
@@ -118,18 +145,12 @@ def generate_plan_and_files(agent_data):
                     with open(previous_file_path, 'r') as prev_f:
                         file_context += f"## {previous_file_name}\n{prev_f.read()}\n"
 
-                prompt = f"""{role}\n{task}\n{response}\n{file_context}## {file_name}\nMake the needed code for the specific {file_name} file. Make sure to only return code. no explanations needed since this will be input directly into a file. If you are making start.py include all imports from previous scripts so that it doesn't break"""
+                prompt = f"""{role}\n{task}\n{response}\n{file_context}## {file_name}\nMake the needed code for the specific {file_name} file. Make sure to only return code. no explanations needed since this will be input directly into a file. here are some codesnippets the user have instructed you to take parts from to complete the task: {codesnippetstext}"""
                 code = request_gemini_to_generate(prompt)
                 f.write(code)
         except Exception as e:
             print(f"Error creating file {file_name}: {e}")
             print(f"File context not available yet for {file_name}")
-
-    file_path = os.path.join(folder_name, "start.py")
-    process = subprocess.run(
-        ["python", file_path], 
-        capture_output=True, text=True
-    )
 
 
 
