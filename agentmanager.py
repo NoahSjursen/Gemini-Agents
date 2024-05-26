@@ -1,50 +1,10 @@
 import json
 import os
 import subprocess
-import dotenv
-import google.generativeai as genai
-
-dotenv.load_dotenv()
-genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-
-# Create the model
-generation_config = {
-    "temperature": 1,
-    "top_p": 0.95,
-    "top_k": 64,
-    "max_output_tokens": 8192,
-    "response_mime_type": "text/plain",
-}
-safety_settings = [
-    {
-        "category": "HARM_CATEGORY_HARASSMENT",
-        "threshold": "BLOCK_NONE",
-    },
-    {
-        "category": "HARM_CATEGORY_HATE_SPEECH",
-        "threshold": "BLOCK_NONE",
-    },
-    {
-        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-        "threshold": "BLOCK_NONE",
-    },
-    {
-        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-        "threshold": "BLOCK_NONE",
-    },
-]
-
-model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash-latest",
-    safety_settings=safety_settings,
-    generation_config=generation_config,
-)
 
 
-def request_gemini_to_generate(user_input):
-    chat_session = model.start_chat(history=[])
-    response = chat_session.send_message(user_input)
-    return response.text.replace("```", "").replace("````python", "").replace("python", "")
+
+
 
 
 
@@ -78,6 +38,12 @@ def view_agents():
       except ValueError:
         print("Invalid input. Please enter a number.")
 
+
+
+
+
+
+
 def agent_action(agent_name, agent_data):
   """Provides actions to perform on the selected agent."""
   while True:
@@ -104,6 +70,15 @@ def agent_action(agent_name, agent_data):
     else:
       print("Invalid choice. Please try again.")
 
+import os
+import json
+
+
+
+
+
+
+
 def edit_agent(agent_name, agent_data):
   """Edits the details of the selected agent."""
   agents_dir = "agents"
@@ -121,10 +96,69 @@ def edit_agent(agent_name, agent_data):
   if new_role:
     agent_data["role"] = new_role
 
+  while True:
+    add_snippets = input("Add/Remove code snippets? (y/n): ")
+    if add_snippets.lower() == 'y':
+      codesnippets_dir = "codesnippets"
+      if not os.path.exists(codesnippets_dir):
+        print("No code snippets available.")
+      else:
+        print("Available Code Snippets:")
+        snippets = []
+        for filename in os.listdir(codesnippets_dir):
+          if filename.endswith(".json"):
+            snippets.append(filename)
+            print(f"{len(snippets)}. {filename}")
+
+        if snippets:
+          while True:
+            try:
+              choice = int(input("Select code snippet (enter number, or 0 to remove): "))
+              if choice == 0:
+                if "codesnippets" in agent_data:
+                  print("Current snippets:")
+                  for i, snippet in enumerate(agent_data["codesnippets"]):
+                    print(f"{i+1}. {snippet}")
+                  while True:
+                    try:
+                      remove_choice = int(input("Enter number of snippet to remove (or 0 to cancel): "))
+                      if 1 <= remove_choice <= len(agent_data["codesnippets"]):
+                        del agent_data["codesnippets"][remove_choice-1]
+                        print(f"Snippet '{snippets[remove_choice-1]}' removed.")
+                        break
+                      elif remove_choice == 0:
+                        break
+                      else:
+                        print("Invalid choice. Please try again.")
+                    except ValueError:
+                      print("Invalid input. Please enter a number.")
+                else:
+                  print("No code snippets associated with this agent.")
+                break
+              elif 1 <= choice <= len(snippets):
+                selected_snippet = snippets[choice - 1]
+                if "codesnippets" not in agent_data:
+                  agent_data["codesnippets"] = []
+                agent_data["codesnippets"].append(selected_snippet)
+                print(f"Code snippet '{selected_snippet}' added to agent.")
+                break
+              else:
+                print("Invalid choice. Please try again.")
+            except ValueError:
+              print("Invalid input. Please enter a number.")
+    else:
+      break
+
   with open(filepath, "w") as f:
     json.dump(agent_data, f, indent=4)
 
   print(f"Agent '{agent_name}' updated successfully.")
+
+
+
+
+
+
 
 def create_agent():
   """Prompts the user to enter agent details and creates a JSON file."""
@@ -135,7 +169,7 @@ def create_agent():
   task = input("Enter agent task: ")
   role = input("Enter agent role: ")
 
-  agent_data = {"task": task, "role": role}
+  agent_data = {"task": task, "role": role, "codesnippets": [""]}
   filename = f"{name}.json"
   filepath = os.path.join(agents_dir, filename)
 
@@ -143,6 +177,12 @@ def create_agent():
     json.dump(agent_data, f, indent=4)
 
   print(f"Agent '{name}' with task '{task}' and role '{role}' created successfully.")
+
+
+
+
+
+
 
 
 def start_agent(agent_name, agent_data):
@@ -170,11 +210,81 @@ def delete_agent(agent_name):
   else:
     print(f"Agent '{agent_name}' not found.")
 
+
+
+
+
+
+
+
+def addCodeSnippets():
+  """Allows users to add code snippets to the agent's knowledge base."""
+  codesnippets_dir = "codesnippets"
+  os.makedirs(codesnippets_dir, exist_ok=True)
+  while True:
+    print("\nAdd Code Snippets:")
+    print("1. Paste Code")
+    print("2. Paste File Path")
+    print("3. Paste Folder Path")
+    print("4. Back")
+
+    choice = input("Enter your choice (1-4): ")
+
+    if choice == '1':
+      code = input("Paste your code:\n")
+      filename = input("Enter a filename for the code snippet: ")
+      filepath = os.path.join(codesnippets_dir, filename + ".json")
+      with open(filepath, 'w') as f:
+        json.dump({"code": f"```python\n{code}\n```"}, f, indent=4)
+      print("Code snippet added successfully.")
+
+    elif choice == '2':
+      filepath = input("Enter the file path: ")
+      if os.path.exists(filepath):
+        with open(filepath, 'r') as f:
+          code = f.read()
+        filename = os.path.basename(filepath).split(".")[0] + ".json"
+        filepath = os.path.join(codesnippets_dir, filename)
+        with open(filepath, 'w') as f:
+          json.dump({"code": f"```python\n{code}\n```"}, f, indent=4)
+        print("Code snippet added successfully.")
+      else:
+        print("Invalid file path. Please try again.")
+
+    elif choice == '3':
+      folder_path = input("Enter the folder path: ")
+      if os.path.isdir(folder_path):
+        for filename in os.listdir(folder_path):
+          if filename.endswith((".py", ".txt")):  # Assuming Python or text files
+            file_path = os.path.join(folder_path, filename)
+            with open(file_path, 'r') as f:
+              code = f.read()
+            output_filename = filename.split(".")[0] + ".json"
+            output_filepath = os.path.join(codesnippets_dir, output_filename)
+            with open(output_filepath, 'w') as f:
+              json.dump({"code": f"```python\n{code}\n```"}, f, indent=4)
+        print("Code snippets from the folder added successfully.")
+      else:
+        print("Invalid folder path. Please try again.")
+
+    elif choice == '4':
+      break
+    else:
+      print("Invalid choice. Please try again.")
+
+
+
+
+
+
+
+
 while True:
   print("\nAgent Management System:")
   print("1. View Agents")
   print("2. Create Agent")
   print("3. Exit")
+  print("4. Add Code Snippets")
 
   choice = input("Enter your choice (1-3): ")
 
@@ -185,5 +295,7 @@ while True:
   elif choice == '3':
     print("Exiting...")
     break
+  elif(choice == '4'):
+    addCodeSnippets()
   else:
     print("Invalid choice. Please try again.")
