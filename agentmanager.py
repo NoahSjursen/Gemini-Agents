@@ -165,18 +165,39 @@ def create_agent():
   agents_dir = "agents"
   os.makedirs(agents_dir, exist_ok=True)  # Create "agents" folder if it doesn't exist
 
-  name = input("Enter agent name: ")
-  task = input("Enter agent task: ")
-  role = input("Enter agent role: ")
+  choice = input("Create agent from scratch (s) or in an assigned folder (f)? ")
 
-  agent_data = {"task": task, "role": role, "codesnippets": [""]}
-  filename = f"{name}.json"
-  filepath = os.path.join(agents_dir, filename)
+  if choice.lower() == 's':
+    name = input("Enter agent name: ")
+    task = input("Enter agent task: ")
+    role = input("Enter agent role: ")
 
-  with open(filepath, "w") as f:
-    json.dump(agent_data, f, indent=4)
+    agent_data = {"task": task, "role": role, "codesnippets": [""], "folder": None}  # Add "folder" key
+    filename = f"{name}.json"
+    filepath = os.path.join(agents_dir, filename)
 
-  print(f"Agent '{name}' with task '{task}' and role '{role}' created successfully.")
+    with open(filepath, "w") as f:
+      json.dump(agent_data, f, indent=4)
+
+    print(f"Agent '{name}' with task '{task}' and role '{role}' created successfully.")
+  elif choice.lower() == 'f':
+    folder_name = input("Enter the name of the folder: ")
+    folder_path = os.path.join(agents_dir, folder_name)  # Get the folder path
+
+    name = input("Enter agent name: ")
+    task = input("Enter agent task: ")
+    role = input("Enter agent role: ")
+
+    agent_data = {"task": task, "role": role, "codesnippets": [""], "folder": folder_name}  # Add "folder" key
+    filename = f"{name}.json"
+    filepath = os.path.join(agents_dir, filename)  # Agent file still in "agents" folder
+
+    with open(filepath, "w") as f:
+      json.dump(agent_data, f, indent=4)
+
+    print(f"Agent '{name}' with task '{task}' and role '{role}' created successfully. The agent is located in the 'agents' folder, and the folder name '{folder_name}' is stored in the agent's data.")
+  else:
+    print("Invalid choice. Please enter 's' or 'f'.")
 
 
 
