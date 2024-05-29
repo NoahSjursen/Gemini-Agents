@@ -51,7 +51,7 @@ def initial_screenshot():
   screenshot = screenshot.resize((screenshot.width // 2, screenshot.height // 2))
 
   # Draw the grid with coordinates
-  grid_size = 60
+  grid_size = 80
   draw = ImageDraw.Draw(screenshot)
   font = ImageFont.truetype("arial.ttf", 11)
 
@@ -102,19 +102,20 @@ def image_reasoning(image_path, screenshotClean):
         "* Menus \n"
         "* Icons \n"
         "* Text \n"
+        "*Language (internally translate so that you can understand what is going on)\n"
         "* Search fields\n"
         "* Interactable elements \n",
         "it's wise to try and find the horizontal center or close to it when selecting the object as there might happen errors if selecting just the edge"
         "Based on the UI elements and their state (enabled, disabled, highlighted, active, inactive), what is the next logical action to complete the current task? ",
         "The return should be one task. Primarily the one object you are most confident in. Return the name of the object",
         "Also return as a seperate line strictly in the format: '''ACTION:(action)''' NO SPACES The different actions could be: \n"
-        "   - '(click)': Click the object with your mouse cursor. This is usually used for selecting, highlighting, or activating an item or button.\n"
+        "   - '(click)': Click the object with your mouse cursor. This is usually used for selecting, highlighting, or activating an item or button. NOT used for opening applications and games on the desktop as doubleclick handles that\n"
         "   - '(doubleclick)': Double-click the object with your mouse cursor. This is typically used to open files, applications, or folders, or to perform specific actions depending on the context.\n"
         "   - '(rightclick)': Right-click the object with your mouse cursor. This usually opens a context menu with additional options or actions related to the object. Can be used for creating new files, folders, properties and other stuff in applications\n"
         "   - '(type)':  Start typing text in the object. If it's a text field, you will need to provide the text content in the next line.\n" 
         "The actions should reflect what needs to be done with the item. If the image shows a typing field that is not yet activated, you can still choose option 'type'.\n" 
         "If the action is (type), then write '''CONTENT:(text you want to write here)''' You are the one who decides what the text should be. Use logic relevant to the image given."
-        "ADD a line where it says '''LOG:(text)'''  Provide information about where you are now. and what the goal is from the task provided, If the previous looped then explain to future AI the solution. and how it needs to prioritize it. Make all logs really short, write in keywords.",
+        "ADD a line where it says '''LOG:(text)'''  Provide information about where you are now. and what the goal is from the task provided, If the previous looped with one action selected each time in the log, try and do the same but switch up the actions. Mainly use for clicking and double clicking",
         "Error Handling: \n"
         "If you cannot identify a relevant object or action, state 'No Action' and explain why. If you encounter an unexpected issue, describe the issue and suggest a course of action. "
         "If you are certain you have reached the goal. Write '''BREAK'''",
@@ -125,6 +126,7 @@ def image_reasoning(image_path, screenshotClean):
 
     task = model.generate_content(prompt_parts)
     task = task.text
+
     print(task)
 
     match = re.search(r"'''LOG:(.*?)'''", task)
@@ -231,7 +233,7 @@ def get_coordinates(task, action):
     prompt_parts = [
         "Image: ",
         uploaded_image,
-        f"Analyze the image. There are coordinates displayed in a grid format. The grid is evenly spaced. Find the cell that is overlayed as much as possible over the object specified in the task: {task}. Then, fill in the coordinates strictly in this format '''CELL:(x,y)'''"
+        f"Analyze the image. There are coordinates displayed in a grid format. The grid is evenly spaced. Find the cell that is overlayed as much as possible over the object specified and closest to center of the object in the task: {task}. Then, fill in the coordinates strictly in this format '''CELL:(x,y)'''"
     ]
 
     response = model.generate_content(prompt_parts)  # Keep the Response object
@@ -275,7 +277,7 @@ def move_cursor(x, y, action, task):
 
     elif action == "(type)":
         pyautogui.click()
-        content_prompt = f"Based on the task given Extract the contents of '''CONTENT:(text)''' Return only the text within the (). Here is the task for refrence: {task} no other explanations are needed"
+        content_prompt = f"Based on the task given Extract the contents of '''CONTENT:(text)''' Return only the text within the (). Here is the task for refrence: {task} no other explanations or formatting are needed"
         content = model.generate_content(content_prompt)
         content = content.text
         print(content)
@@ -288,12 +290,7 @@ def move_cursor(x, y, action, task):
     else:
         print("Invalid action specified.")
 
-    screenshot = pyautogui.screenshot()
-    screenshot = screenshot.resize((screenshot.width // 2, screenshot.height // 2))
-
-    image_path = "screenshot_grid.png"
-    sleep(3)
-    screenshot.save(image_path)
+    
 
 
 initial_task = input("Task: ")
