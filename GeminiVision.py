@@ -5,6 +5,8 @@ import pyautogui
 from PIL import Image, ImageDraw, ImageFont
 import re
 from time import sleep
+
+pyautogui.FAILSAFE = False
 dotenv.load_dotenv()
 
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
@@ -43,13 +45,14 @@ model = genai.GenerativeModel(model_name="gemini-1.5-pro-latest",
 
 
 def initial_screenshot():
+  sleep(5)
   # Take a screenshot
   screenshot = pyautogui.screenshot()
   screenshotClean = screenshot.resize((screenshot.width // 2, screenshot.height // 2))
   screenshot = screenshot.resize((screenshot.width // 2, screenshot.height // 2))
 
   # Draw the grid with coordinates
-  grid_size = 60
+  grid_size = 80
   draw = ImageDraw.Draw(screenshot)
   font = ImageFont.truetype("arial.ttf", 11)
 
@@ -80,37 +83,72 @@ def initial_screenshot():
   # Upload the image **after** saving it
   image_reasoning(image_path,screenshotClean)
 
+
+# For each print? Also add it as a log to the list as an element. WHen log needs to be presented, print the last 10 actions into the prompts
+
 def image_reasoning(image_path, screenshotClean):
+    recent_log = log[-3:]  # Get the last 10 items in the list
     uploaded_image = genai.upload_file(image_path)
 
     prompt_parts = [
-        "Initial task:",
+        "This is your 3 last actions:",
+        f"{recent_log}",
+        "Current Task:",
         initial_task,
-        "Based on this task given. Determine where you are in the process and what is next. See what applications, icons, or other guiding items you have that would logically reach the intended goal"
-        "if the given task contains nothing move on and decide what you would like to do yourself.",
         uploaded_image,
-        "You are an AI agent exploring a digital environment. Imagine yourself interacting with this environment.",
-        "Identify the most relevant UI elements in the image (e.g., buttons, menus, text fields, icons, game elements like characters, enemies, items).", 
-        "Based on these elements and their state (e.g., enabled, disabled, highlighted, active, inactive), what is the next logical step I should take to interact with this environment? ",
-
-        "If this is a game, provide answers to the following questions:",
-        "1. What game is this? ",
-        "2. What are the general tasks or objectives in this game?",
-        "3. Based on the current screenshot, what specific actions should I take to progress in the game? Provide a step-by-step guide for achieving this goal."
-
-        "The return should be one task. Primarily the one object you are most confident in. Return the name of the object"
-        "Also return as a seperate line: '''ACTION:(action)''' The different actions could be: \n"
-        "   - '(click)': Click the object with your mouse cursor. This is usually used for selecting, highlighting, or activating an item or button.\n"
+        "You are an AI agent interacting with a digital environment.",
+        "Identify the most relevant UI elements in the image. and the indended goal from the current task. These could include: \n"
+        "* Buttons \n"
+        "* Text fields \n"
+        "* Menus \n"
+        "* Icons \n"
+        "* Text \n"
+        "*Language (internally translate so that you can understand what is going on)\n"
+        "* Search fields\n"
+        "* Links (usually appear after searching for something. The link will most likely be something you're looking for. If you register that something has been typed in a search field. Find a corresponding link to click in google search)"
+        "* Interactable elements \n",
+        "* Websites (If the user requests something you believe to be a website the most likely option will be to search for it in a browser search bar)"
+        "it's wise to try and find the horizontal center or close to it when selecting the object as there might happen errors if selecting just the edge"
+        "Based on the UI elements and their state (enabled, disabled, highlighted, active, inactive), what is the next logical action to complete the current task? ",
+        "The return should be one task. Primarily the one object you are most confident in. Return the name of the object",
+        "Also return as a seperate line strictly in the format: '''ACTION:(action)''' NO SPACES The different actions could be: \n"
+        "   - '(click)': Click the object with your mouse cursor. This is usually used for selecting, highlighting, or activating an item or button. NOT used for opening applications and games on the desktop as doubleclick handles that\n"
         "   - '(doubleclick)': Double-click the object with your mouse cursor. This is typically used to open files, applications, or folders, or to perform specific actions depending on the context.\n"
         "   - '(rightclick)': Right-click the object with your mouse cursor. This usually opens a context menu with additional options or actions related to the object. Can be used for creating new files, folders, properties and other stuff in applications\n"
         "   - '(type)':  Start typing text in the object. If it's a text field, you will need to provide the text content in the next line.\n" 
         "The actions should reflect what needs to be done with the item. If the image shows a typing field that is not yet activated, you can still choose option 'type'.\n" 
-        "If the action is (type), then write '''CONTENT:(text you want to write here)''' You are the one who decides what the text should be. Use logic relevant to the image given." 
+        "If the action is (type), then write '''CONTENT:(text you want to write here)''' You are the one who decides what the text should be. Use logic relevant to the image given."
+        "ADD a line where it says '''LOG:(text)'''  Provide information about where you are now. and what the goal is from the task provided, If the previous looped with one action selected each time in the log, try and do the same but switch up the actions. Mainly use for clicking and double clicking",
+        "Error Handling: \n"
+        "If you cannot identify a relevant object or action, state 'No Action' and explain why. If you encounter an unexpected issue, describe the issue and suggest a course of action. "
+        "If you are certain you have reached the goal. Write '''BREAK'''",
+        "**Example Log:**",
+        "'''LOG:(Click, Login Button, Login, Success, Successfully logged in, What changed since last frame)'''",
+        "This log indicates that the previous action was to click the 'Login Button' with the goal of logging in. The action was successful, and the AI has successfully logged in."
     ]
 
     task = model.generate_content(prompt_parts)
     task = task.text
+
     print(task)
+
+    match = re.search(r"'''LOG:(.*?)'''", task)
+
+    if match:
+        log.append(match.group(1))
+        print(f"Extracted log")
+    else:
+        print("No log found in the task string.")
+
+
+    match = re.search(r"'''BREAK'''", task)
+
+    if match:
+       exit()
+    else:
+        print("No log found in the task string.")
+
+
 
     match = re.search(r"'''ACTION:(.*?)'''", task)
 
@@ -125,7 +163,7 @@ def image_reasoning(image_path, screenshotClean):
     prompt_parts = [
       "Image: ",
       uploaded_image,
-      f"Analyze the image. There are coordinates displayed. Look for the object specified in the task: {task}.When you find the object. Look for the coordinates displayed in the top left of that cell and return '''CELL:(x,y)''' . Also return the coordinates of the cell that is one space down and one space right '''DIAGONAL:(x,y)'''"
+      f"Analyze the image. There are coordinates displayed. Look for the object specified in the task: {task}.When you find the object. Look for the coordinates displayed in the top left of that cell and return '''CELL:(x,y)''' . Also return the coordinates of the cell that is one space down and one space right '''DIAGONAL:(x,y)''' Make sure that the entire object is visible in the square if you were to remove all other information than that square. If not then pick a better more suitable one."
     ]
 
 
@@ -198,7 +236,7 @@ def get_coordinates(task, action):
     prompt_parts = [
         "Image: ",
         uploaded_image,
-        f"Analyze the image. There are coordinates displayed in a grid format. The grid is evenly spaced. Find the cell that is overlayed as much as possible over the object specified in the task: {task}. Then, fill in the coordinates strictly in this format '''CELL:(x,y)'''"
+        f"Analyze the image. There are coordinates displayed in a grid format. The grid is evenly spaced. Find the cell that is overlayed as much as possible over the object specified and closest to center of the object in the task: {task}. Then, fill in the coordinates strictly in this format '''CELL:(x,y)'''"
     ]
 
     response = model.generate_content(prompt_parts)  # Keep the Response object
@@ -242,7 +280,7 @@ def move_cursor(x, y, action, task):
 
     elif action == "(type)":
         pyautogui.click()
-        content_prompt = f"Based on the task given Extract the contents of '''CONTENT:(text)''' Return only the text within the (). Here is the task for refrence: {task}"
+        content_prompt = f"Based on the task given Extract the contents of '''CONTENT:(text)''' Return only the text within the (). Here is the task for refrence: {task} no other explanations or formatting are needed"
         content = model.generate_content(content_prompt)
         content = content.text
         print(content)
@@ -255,15 +293,12 @@ def move_cursor(x, y, action, task):
     else:
         print("Invalid action specified.")
 
-    screenshot = pyautogui.screenshot()
-    screenshot = screenshot.resize((screenshot.width // 2, screenshot.height // 2))
-
-    image_path = "screenshot_grid.png"
-    sleep(3)
-    screenshot.save(image_path)
+    
 
 
 initial_task = input("Task: ")
+log = []
 # Get user input
 while True:
   initial_screenshot()
+  print(log)
