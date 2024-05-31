@@ -8,7 +8,7 @@ from time import sleep
 pyautogui.FAILSAFE = False
 
 #genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-genai.configure(api_key="AIzaSyCCr6yezws14WfNDpvGeCJvvvOEJYs3jwE")
+genai.configure(api_key="")
 
 # Set up the model
 generation_config = {
